@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  memgraph:
+    image: memgraph/memgraph:latest
+    container_name: fraud-memgraph
+    ports:
+      - "7687:7687"  # Bolt port
+      - "7444:7444"  # HTTP port
+    environment:
+      - MEMGRAPH="--log-level=TRACE"
+    volumes:
+      - memgraph_data:/var/lib/memgraph
+      - ./docker/memgraph:/etc/memgraph
+    command: ["--log-level=TRACE", "--also-log-to-stderr"]
+    healthcheck:
+      test: ["CMD", "mgconsole", "--host", "localhost", "--port", "7687", "--execute", "RETURN 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: fraud-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  backend:
+    build: .
+    container_name: fraud-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=development
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8000
+      - MEMGRAPH_URI=bolt://memgraph:7687
+      - MEMGRAPH_USER=mg_user
+      - MEMGRAPH_PASSWORD=mg_password
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+      - LOG_LEVEL=info
+      - CORS_ORIGINS=["http://localhost:3000", "http://localhost:3001"]
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      memgraph:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  mgconsole:
+    image: memgraph/memgraph:latest
+    container_name: fraud-mgconsole
+    depends_on:
+      memgraph:
+        condition: service_healthy
+    command: ["mgconsole", "--host", "memgraph", "--port", "7687"]
+    stdin_open: true
+    tty: true
+
+volumes:
+  memgraph_data:
+  redis_data:
