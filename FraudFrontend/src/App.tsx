@@ -1,7 +1,6 @@
 import { BrowserRouter as Router } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { UIProvider } from '@/contexts/UIContext';
-import { WebSocketProvider } from '@/contexts/WebSocketContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AppRoutes } from '@/routes';
 import './styles/tailwind.css';
@@ -16,11 +15,9 @@ function App() {
     >
       <AuthProvider>
         <UIProvider>
-          <WebSocketProvider>
-            <AppLayout>
-              <AppRoutes />
-            </AppLayout>
-          </WebSocketProvider>
+          <AppLayout>
+            <AppRoutes />
+          </AppLayout>
         </UIProvider>
       </AuthProvider>
     </Router>

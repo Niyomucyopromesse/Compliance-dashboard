@@ -267,6 +267,165 @@ async def get_accounts():
 DATA_DIR = Path(r"C:\Users\smutinda\Documents\DATA MANAGEMENT\2025\2025 Q4\FRAUD\Fraud_Detector\FraudBackend\app\data")
 COMPLIANCE_FILE = DATA_DIR / "Compliance_Register.xlsx"
 
+# Simple cache for combined dataframe (cleared on updates)
+_cached_df = None
+_cached_sheet_map = None
+_cache_timestamp = None
+
+def read_all_sheets_from_excel(excel_path: Path, use_cache: bool = True):
+    """Read all sheets from Excel file and combine them into one DataFrame."""
+    global _cached_df, _cached_sheet_map, _cache_timestamp
+    
+    # Use cache if available and file hasn't been modified
+    if use_cache and _cached_df is not None and _cached_sheet_map is not None:
+        if excel_path.exists():
+            file_mtime = excel_path.stat().st_mtime
+            if _cache_timestamp is not None and file_mtime <= _cache_timestamp:
+                return _cached_df.copy(), _cached_sheet_map.copy()
+    
+    try:
+        # Read all sheets (limit to first 5 non-empty sheets as requested)
+        excel_file = pd.ExcelFile(excel_path, engine='openpyxl')
+        sheet_names = excel_file.sheet_names
+        
+        all_dataframes = []
+        sheet_data_map = {}  # Store original sheet data for writing back
+        
+        non_empty_count = 0
+        for sheet_name in sheet_names:
+            try:
+                df = pd.read_excel(excel_path, sheet_name=sheet_name, engine='openpyxl')
+                
+                # Skip empty sheets
+                if df.empty:
+                    sheet_data_map[sheet_name] = df
+                    continue
+                
+                # Respect the limit of 5 non-empty sheets
+                if non_empty_count >= 5:
+                    sheet_data_map[sheet_name] = df
+                    continue
+                non_empty_count += 1
+                
+                # Store original sheet data
+                sheet_data_map[sheet_name] = df.copy()
+                
+                # Add a column to track the source sheet (department name)
+                # Only add if it doesn't already exist
+                if 'SOURCE_SHEET' not in df.columns:
+                    df['SOURCE_SHEET'] = sheet_name
+                
+                # Also try to set department column if it doesn't exist or is empty
+                dept_col = None
+                for col in df.columns:
+                    if 'department' in col.lower() or 'responsible' in col.lower():
+                        dept_col = col
+                        break
+                
+                # If department column exists but has empty values, fill with sheet name
+                if dept_col:
+                    df[dept_col] = df[dept_col].fillna(sheet_name)
+                elif 'RESPONSIBLE DEPARTMENT' not in df.columns and 'Responsible Department' not in df.columns:
+                    # Add department column if it doesn't exist
+                    df['RESPONSIBLE DEPARTMENT'] = sheet_name
+                
+                all_dataframes.append(df)
+            except Exception as e:
+                # Skip sheets that can't be read
+                print(f"Warning: Could not read sheet '{sheet_name}': {str(e)}")
+                sheet_data_map[sheet_name] = pd.DataFrame()
+                continue
+        
+        if not all_dataframes:
+            return pd.DataFrame(), sheet_data_map
+        
+        # Combine all dataframes
+        combined_df = pd.concat(all_dataframes, ignore_index=True)
+        
+        # Cache the result
+        _cached_df = combined_df.copy()
+        _cached_sheet_map = sheet_data_map.copy()
+        _cache_timestamp = excel_path.stat().st_mtime if excel_path.exists() else None
+        
+        return combined_df, sheet_data_map
+        
+    except Exception as e:
+        import traceback
+        error_detail = f"Error reading Excel sheets: {str(e)}\nTraceback: {traceback.format_exc()}"
+        raise Exception(error_detail)
+
+def save_to_all_sheets(excel_path: Path, combined_df: pd.DataFrame, sheet_data_map: Dict[str, pd.DataFrame]):
+    """Save combined dataframe back to individual sheets based on SOURCE_SHEET column."""
+    try:
+        from openpyxl import load_workbook
+        
+        # Load the workbook
+        wb = load_workbook(excel_path)
+        
+        # Get all sheet names from the workbook
+        existing_sheets = wb.sheetnames.copy()
+        
+        # Group records by source sheet
+        if 'SOURCE_SHEET' in combined_df.columns:
+            # Get unique sheet names from the combined dataframe
+            unique_sheets = combined_df['SOURCE_SHEET'].unique().tolist()
+            
+            # Process each sheet
+            for sheet_name in unique_sheets:
+                # Get records for this sheet
+                sheet_df = combined_df[combined_df['SOURCE_SHEET'] == sheet_name].copy()
+                
+                # Drop SOURCE_SHEET and 'id' columns before saving
+                sheet_df = sheet_df.drop(columns=['SOURCE_SHEET', 'id'], errors='ignore')
+                
+                # Remove the sheet if it exists
+                if sheet_name in wb.sheetnames:
+                    wb.remove(wb[sheet_name])
+                
+                # Create new sheet
+                ws = wb.create_sheet(sheet_name)
+                
+                # Write headers
+                if not sheet_df.empty:
+                    headers = list(sheet_df.columns)
+                    ws.append(headers)
+                    
+                    # Write data
+                    for _, row in sheet_df.iterrows():
+                        row_data = []
+                        for col in headers:
+                            val = row[col]
+                            if pd.isna(val):
+                                row_data.append(None)
+                            else:
+                                row_data.append(val)
+                        ws.append(row_data)
+                else:
+                    # Create empty sheet with headers from original
+                    if sheet_name in sheet_data_map and not sheet_data_map[sheet_name].empty:
+                        headers = list(sheet_data_map[sheet_name].columns)
+                        ws.append(headers)
+        
+        # Save the workbook
+        wb.save(excel_path)
+        
+        # Clear cache after saving
+        global _cached_df, _cached_sheet_map, _cache_timestamp
+        _cached_df = None
+        _cached_sheet_map = None
+        _cache_timestamp = None
+        
+    except Exception as e:
+        import traceback
+        print(f"Error saving to sheets: {str(e)}\nTraceback: {traceback.format_exc()}")
+        # Fallback: save to first sheet only
+        try:
+            df_to_save = combined_df.drop(columns=['SOURCE_SHEET', 'id'], errors='ignore')
+            with pd.ExcelWriter(excel_path, engine='openpyxl', mode='w') as writer:
+                df_to_save.to_excel(writer, index=False, sheet_name='Sheet1')
+        except Exception as e2:
+            raise Exception(f"Failed to save Excel file: {str(e2)}")
+
 @app.get("/api/v1/compliance/debug-path")
 async def get_compliance_debug_path():
     """Debug endpoint to check the file path being used."""
@@ -290,16 +449,42 @@ async def get_compliance_stats():
                 detail=f"Compliance Register file not found at: {excel_path}. Please ensure the file exists at this location."
             )
         
-        # Read the Excel file
+        # Read all sheets from the Excel file
         try:
-            df = pd.read_excel(excel_path, engine='openpyxl')
-        except ImportError:
+            df, _ = read_all_sheets_from_excel(excel_path)
+        except ImportError as e:
             raise HTTPException(
                 status_code=500, 
-                detail="openpyxl library is required to read Excel files. Please install it with: pip install openpyxl"
+                detail=f"openpyxl library is required to read Excel files. Please install it with: pip install openpyxl. Error: {str(e)}"
+            )
+        except FileNotFoundError:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Excel file not found at: {excel_path}"
             )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error reading Excel file: {str(e)}")
+            import traceback
+            error_detail = f"Error reading Excel file: {str(e)}\nFile path: {excel_path}\nTraceback: {traceback.format_exc()}"
+            raise HTTPException(status_code=500, detail=error_detail)
+        
+        # Check if dataframe is empty
+        if df.empty:
+            return {
+                "success": True,
+                "data": {
+                    "total_records": 0,
+                    "columns": [],
+                    "summary": {
+                        "total_entries": 0,
+                        "data_quality": {
+                            "complete_records": 0,
+                            "incomplete_records": 0,
+                            "completion_rate": "0%"
+                        }
+                    },
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
         
         # Calculate statistics
         total_records = len(df)
@@ -335,8 +520,12 @@ async def get_compliance_stats():
             "data": stats
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error reading compliance data: {str(e)}")
+        import traceback
+        error_detail = f"Error reading compliance data: {str(e)}\n{traceback.format_exc()}"
+        raise HTTPException(status_code=500, detail=error_detail)
 
 
 @app.get("/api/v1/compliance/records")
@@ -357,17 +546,23 @@ async def get_compliance_records(
                 detail=f"Compliance Register file not found at: {excel_path}. Please ensure the file exists at this location."
             )
         
-        # Read the Excel file
+        # Read all sheets from the Excel file
         try:
-            df = pd.read_excel(excel_path, engine='openpyxl')
-        except ImportError:
+            df, _ = read_all_sheets_from_excel(excel_path)
+        except ImportError as e:
             raise HTTPException(
                 status_code=500, 
-                detail="openpyxl library is required to read Excel files. Please install it with: pip install openpyxl"
+                detail=f"openpyxl library is required to read Excel files. Please install it with: pip install openpyxl. Error: {str(e)}"
+            )
+        except FileNotFoundError:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Excel file not found at: {excel_path}"
             )
         except Exception as e:
-            error_msg = f"Error reading Excel file at {excel_path}: {str(e)}"
-            raise HTTPException(status_code=500, detail=error_msg)
+            import traceback
+            error_detail = f"Error reading Excel file: {str(e)}\nFile path: {excel_path}\nTraceback: {traceback.format_exc()}"
+            raise HTTPException(status_code=500, detail=error_detail)
         
         # Check if dataframe is empty
         if df.empty:
@@ -465,30 +660,43 @@ async def update_compliance_record(record_id: int, record_data: Dict[str, Any] =
                 detail=f"Compliance Register file not found at: {excel_path}. Please ensure the file exists at this location."
             )
         
-        # Read the Excel file
+        # Read all sheets from the Excel file
         try:
-            df = pd.read_excel(excel_path, engine='openpyxl')
-        except ImportError:
+            df, sheet_data_map = read_all_sheets_from_excel(excel_path)
+        except ImportError as e:
             raise HTTPException(
                 status_code=500, 
-                detail="openpyxl library is required to read Excel files. Please install it with: pip install openpyxl"
+                detail=f"openpyxl library is required to read Excel files. Please install it with: pip install openpyxl. Error: {str(e)}"
+            )
+        except FileNotFoundError:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Excel file not found at: {excel_path}"
             )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error reading Excel file: {str(e)}")
+            import traceback
+            error_detail = f"Error reading Excel file: {str(e)}\nFile path: {excel_path}\nTraceback: {traceback.format_exc()}"
+            raise HTTPException(status_code=500, detail=error_detail)
+        
+        # Check if dataframe is empty
+        if df.empty:
+            raise HTTPException(status_code=404, detail="No records found in Excel file")
+        
+        # Store original index as 'id' for API use
+        df['id'] = df.index
         
         # Find the record by id (which is the index in our system)
         if record_id < 0 or record_id >= len(df):
             raise HTTPException(status_code=404, detail="Record not found")
         
-        # Update the record - exclude 'id' and 'index' from updates
+        # Update the record - exclude 'id', 'index', and 'SOURCE_SHEET' from updates
         for key, value in record_data.items():
-            if key in df.columns and key not in ['id', 'index']:
+            if key in df.columns and key not in ['id', 'index', 'SOURCE_SHEET']:
                 df.at[record_id, key] = value
         
-        # Save back to Excel (drop 'id' column if it exists, as it's only for API use)
-        df_to_save = df.drop(columns=['id'], errors='ignore')
+        # Save back to all sheets
         try:
-            df_to_save.to_excel(excel_path, index=False, engine='openpyxl')
+            save_to_all_sheets(excel_path, df, sheet_data_map)
         except ImportError:
             raise HTTPException(
                 status_code=500, 
@@ -529,34 +737,65 @@ async def create_compliance_record(record_data: Dict[str, Any] = Body(...)):
                 detail=f"Compliance Register file not found at: {excel_path}. Please ensure the file exists at this location."
             )
         
-        # Read the Excel file
+        # Read all sheets from the Excel file
         try:
-            df = pd.read_excel(excel_path, engine='openpyxl')
-        except ImportError:
+            df, sheet_data_map = read_all_sheets_from_excel(excel_path)
+        except ImportError as e:
             raise HTTPException(
                 status_code=500, 
-                detail="openpyxl library is required to read Excel files. Please install it with: pip install openpyxl"
+                detail=f"openpyxl library is required to read Excel files. Please install it with: pip install openpyxl. Error: {str(e)}"
+            )
+        except FileNotFoundError:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Excel file not found at: {excel_path}"
             )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error reading Excel file: {str(e)}")
+            import traceback
+            error_detail = f"Error reading Excel file: {str(e)}\nFile path: {excel_path}\nTraceback: {traceback.format_exc()}"
+            raise HTTPException(status_code=500, detail=error_detail)
+        
+        # Determine which sheet to add the record to based on department
+        target_sheet = None
+        dept_col = None
+        for col in df.columns:
+            if 'department' in col.lower() or 'responsible' in col.lower():
+                dept_col = col
+                break
+        
+        if dept_col and dept_col in record_data and record_data[dept_col]:
+            target_sheet = str(record_data[dept_col]).strip()
+        elif 'SOURCE_SHEET' in df.columns and len(df) > 0:
+            # Use the first sheet as default
+            target_sheet = df['SOURCE_SHEET'].iloc[0] if 'SOURCE_SHEET' in df.columns else None
+        else:
+            # Get first sheet name from Excel file
+            try:
+                excel_file = pd.ExcelFile(excel_path, engine='openpyxl')
+                target_sheet = excel_file.sheet_names[0] if excel_file.sheet_names else 'Sheet1'
+            except:
+                target_sheet = 'Sheet1'
         
         # Create new row - only include columns that exist in the dataframe
         new_row = {}
         for col in df.columns:
-            # Skip 'id' and 'index' columns as they're auto-generated
-            if col not in ['id', 'index']:
+            # Skip 'id', 'index', and 'SOURCE_SHEET' columns as they're auto-generated
+            if col not in ['id', 'index', 'SOURCE_SHEET']:
                 new_row[col] = record_data.get(col, None)
+        
+        # Set SOURCE_SHEET for the new record
+        new_row['SOURCE_SHEET'] = target_sheet
         
         # Append new row
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         
         # Calculate the new record's ID (it will be the last row index)
         new_record_id = len(df) - 1
+        df.at[new_record_id, 'id'] = new_record_id
         
-        # Save back to Excel (drop 'id' column if it exists, as it's only for API use)
-        df_to_save = df.drop(columns=['id'], errors='ignore')
+        # Save back to all sheets
         try:
-            df_to_save.to_excel(excel_path, index=False, engine='openpyxl')
+            save_to_all_sheets(excel_path, df, sheet_data_map)
         except ImportError:
             raise HTTPException(
                 status_code=500, 

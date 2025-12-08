@@ -3,20 +3,15 @@ import {
   Menu, 
   Sun, 
   Moon, 
-  RefreshCw,
-  Wifi,
-  WifiOff,
   Home,
   ChevronRight
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useUI } from '@/contexts/UIContext';
-import { useWebSocket } from '@/contexts/WebSocketContext';
 import { clsx } from 'clsx';
 
 export function Topbar() {
   const { state, toggleSidebar, setTheme, setNotifications } = useUI();
-  const { isConnected, isPaused, pause, resume } = useWebSocket();
   const location = useLocation();
 
   // Breadcrumb logic
@@ -60,20 +55,21 @@ export function Topbar() {
     setNotifications(!state.notifications);
   };
 
-  const handleLiveFeedToggle = () => {
-    if (isPaused) {
-      resume();
-    } else {
-      pause();
-    }
-  };
-
   return (
     <header className="sticky top-0 z-40 bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-          {/* Left side - Menu button and Breadcrumbs */}
+          {/* Left side - Logo, Menu button and Breadcrumbs */}
           <div className="flex items-center space-x-4">
+            {/* Brand Logo */}
+            <Link to="/" className="flex items-center mr-4">
+              <img 
+                src="/brand-logo.png" 
+                alt="Bank Logo" 
+                className="h-10 w-auto object-contain"
+              />
+            </Link>
+            
             <button
               onClick={toggleSidebar}
               className="p-2 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 lg:hidden"
@@ -191,37 +187,6 @@ export function Topbar() {
 
           {/* Right side */}
           <div className="flex items-center space-x-4">
-            {/* Live feed status */}
-            <div className="flex items-center space-x-2">
-              <div className={clsx(
-                'flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium',
-                isConnected 
-                  ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' 
-                  : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
-              )}>
-                {isConnected ? (
-                  <Wifi className="h-3 w-3" />
-                ) : (
-                  <WifiOff className="h-3 w-3" />
-                )}
-                <span>{isConnected ? 'Live' : 'Offline'}</span>
-              </div>
-              
-              {isConnected && (
-                <button
-                  onClick={handleLiveFeedToggle}
-                  className={clsx(
-                    'p-2 rounded-md text-sm font-medium transition-colors',
-                    isPaused
-                      ? 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                      : 'text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300'
-                  )}
-                >
-                  <RefreshCw className={clsx('h-4 w-4', !isPaused && 'animate-spin')} />
-                </button>
-              )}
-            </div>
-
             {/* Notifications */}
             <button
               onClick={handleNotificationsToggle}

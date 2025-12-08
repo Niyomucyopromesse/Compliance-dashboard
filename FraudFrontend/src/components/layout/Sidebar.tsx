@@ -13,9 +13,6 @@ import { clsx } from 'clsx';
 
 const navigation = [
   { name: 'Home', href: '/home', icon: LayoutDashboard },
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Compliance', href: '/compliance', icon: FileText },
-  { name: 'Overview', href: '/overview', icon: LayoutDashboard },
   { name: 'Details', href: '/details', icon: FileText },
 ];
 
@@ -51,11 +48,20 @@ export function Sidebar() {
         <div className="flex h-full flex-col">
           {/* Logo and toggle button */}
           <div className="flex h-16 items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
-            {state.sidebarOpen && (
-              <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                Compliance Register
-              </h1>
-            )}
+            <div className="flex items-center space-x-3 flex-1">
+              <Link to="/" className="flex items-center">
+                <img 
+                  src="/brand-logo.png" 
+                  alt="Bank Logo" 
+                  className={state.sidebarOpen ? "h-10 w-auto object-contain" : "h-8 w-8 object-contain"}
+                />
+              </Link>
+              {state.sidebarOpen && (
+                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                  Compliance Register
+                </h1>
+              )}
+            </div>
             <button
               onClick={toggleSidebar}
               className="p-2 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
