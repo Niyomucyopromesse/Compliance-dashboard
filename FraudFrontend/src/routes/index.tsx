@@ -1,22 +1,19 @@
 import { Routes, Route } from 'react-router-dom';
+import { HomePage } from '@/pages/HomePage';
 import { DashboardPage } from '@/pages/DashboardPage';
-import { CustomersPage } from '@/pages/CustomersPage';
-import { CustomerPage } from '@/pages/CustomerPage';
-import { AccountsPage } from '@/pages/AccountsPage';
-import { AccountPage } from '@/pages/AccountPage';
-import { FraudMonitoringPage } from '@/pages/FraudMonitoringPage';
-import { TransactionPage } from '@/pages/TransactionPage';
+import { OverviewPage } from '@/pages/OverviewPage';
+import { DetailsPage } from '@/pages/DetailsPage';
+import { CompliancePage } from '@/pages/CompliancePage';
 
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<DashboardPage />} />
-      <Route path="/customers" element={<CustomersPage />} />
-      <Route path="/customers/:customerId" element={<CustomerPage />} />
-      <Route path="/accounts" element={<AccountsPage />} />
-      <Route path="/accounts/:accountId" element={<AccountPage />} />
-      <Route path="/monitor" element={<FraudMonitoringPage />} />
-      <Route path="/transactions/:txId" element={<TransactionPage />} />
+      <Route path="/" element={<HomePage />} />
+      <Route path="/home" element={<HomePage />} />
+      <Route path="/dashboard" element={<DashboardPage />} />
+      <Route path="/overview" element={<OverviewPage />} />
+      <Route path="/details" element={<DetailsPage />} />
+      <Route path="/compliance" element={<CompliancePage />} />
     </Routes>
   );
 }

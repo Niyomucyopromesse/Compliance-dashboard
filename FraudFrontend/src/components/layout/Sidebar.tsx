@@ -1,10 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
-  Users, 
-  CreditCard, 
-  Shield, 
-  Activity,
+  FileText,
   ChevronLeft,
   ChevronRight,
   Settings,
@@ -15,11 +12,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { clsx } from 'clsx';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Customers', href: '/customers', icon: Users },
-  { name: 'Accounts', href: '/accounts', icon: CreditCard },
-  { name: 'Fraud Monitor', href: '/monitor', icon: Shield },
-  { name: 'Transactions', href: '/transactions', icon: Activity },
+  { name: 'Home', href: '/home', icon: LayoutDashboard },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Compliance', href: '/compliance', icon: FileText },
+  { name: 'Overview', href: '/overview', icon: LayoutDashboard },
+  { name: 'Details', href: '/details', icon: FileText },
 ];
 
 export function Sidebar() {
@@ -56,7 +53,7 @@ export function Sidebar() {
           <div className="flex h-16 items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
             {state.sidebarOpen && (
               <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                Fraud Dashboard
+                Compliance Register
               </h1>
             )}
             <button
@@ -84,14 +81,15 @@ export function Sidebar() {
                   className={clsx(
                     'group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',
                     isCurrent
-                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200'
+                      ? 'text-white'
                       : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100'
                   )}
+                  style={isCurrent ? { backgroundColor: '#006B3C' } : {}}
                 >
                   <Icon
                     className={clsx(
                       'mr-3 h-5 w-5 flex-shrink-0',
-                      isCurrent ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-500 dark:group-hover:text-gray-400'
+                      isCurrent ? 'text-white' : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-500 dark:group-hover:text-gray-400'
                     )}
                   />
                   {state.sidebarOpen && (
@@ -108,7 +106,7 @@ export function Sidebar() {
               <div className="space-y-3">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
-                    <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
+                    <div className="h-8 w-8 rounded-full flex items-center justify-center" style={{ backgroundColor: '#006B3C' }}>
                       <span className="text-sm font-medium text-white">
                         {authState.user?.name?.charAt(0) || 'U'}
                       </span>
@@ -140,7 +138,7 @@ export function Sidebar() {
               </div>
             ) : (
               <div className="flex flex-col items-center space-y-2">
-                <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
+                <div className="h-8 w-8 rounded-full flex items-center justify-center" style={{ backgroundColor: '#006B3C' }}>
                   <span className="text-sm font-medium text-white">
                     {authState.user?.name?.charAt(0) || 'U'}
                   </span>
