@@ -1,10 +1,17 @@
-// Simple API client for the fraud detection system
-const API_BASE_URL = 'http://127.0.0.1:8000';
+// Simple API client for the fraud detection system (uses .env: VITE_API_BASE_URL)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001';
 
-// Helper function to make API calls
-async function fetchAPI(endpoint: string) {
+function getAuthHeaders(): Record<string, string> {
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('fraud_dashboard_auth_token') : null;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
+
+async function fetchAPI(endpoint: string, options: RequestInit = {}) {
+  const headers = { ...getAuthHeaders(), ...(options.headers as Record<string, string>) };
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`);
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -15,58 +22,89 @@ async function fetchAPI(endpoint: string) {
   }
 }
 
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  user: { id: string; name: string; email: string; role: string; permissions: string[] };
+}
+
 // API endpoints
 export const api = {
-  // Health check
-  health: () => fetchAPI('/health'),
-  
-  // Metrics
-  getMetrics: () => fetchAPI('/api/v1/metrics'),
-  
-  // Transactions
-  getTransactions: (limit = 10) => fetchAPI(`/api/v1/transactions?limit=${limit}`),
-  getTransaction: (id: string) => fetchAPI(`/api/v1/transactions/${id}`),
-  
-  // Customers
-  getCustomers: (limit = 10) => fetchAPI(`/api/v1/customers?limit=${limit}`),
-  getCustomer: (id: string) => fetchAPI(`/api/v1/customers/${id}`),
-  
-  // Alerts
-  getAlerts: (limit = 10) => fetchAPI(`/api/v1/alerts?limit=${limit}`),
-  getAlert: (id: string) => fetchAPI(`/api/v1/alerts/${id}`),
-  
-  // Accounts
-  getAccounts: () => fetchAPI('/api/v1/accounts'),
-  
-  // Test data generation
-  generateTransaction: () => fetch(`${API_BASE_URL}/api/v1/test/generate-transaction`, { method: 'POST' }).then(r => r.json()),
-  generateAlert: () => fetch(`${API_BASE_URL}/api/v1/test/generate-alert`, { method: 'POST' }).then(r => r.json()),
-  resetData: () => fetch(`${API_BASE_URL}/api/v1/test/reset-data`, { method: 'POST' }).then(r => r.json()),
-  
+  getBaseURL: () => API_BASE_URL,
+
+  // Auth (AD/LDAP + JWT 8h)
+  login: (username: string, password: string): Promise<LoginResponse> =>
+    fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    }).then(async (r) => {
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || 'Login failed');
+      return data as LoginResponse;
+    }),
+
   // Compliance Register
   getComplianceStats: () => fetchAPI('/api/v1/compliance/stats'),
+  /** Single call: departments + statuses + first page. Use for initial load to reduce latency. */
+  getComplianceInitial: (limit = 1000, offset = 0, department?: string, status?: string) => {
+    let url = `/api/v1/compliance/initial?limit=${limit}&offset=${offset}`;
+    if (department) url += `&department=${encodeURIComponent(department)}`;
+    if (status) url += `&status=${encodeURIComponent(status)}`;
+    return fetchAPI(url) as Promise<{
+      success: boolean;
+      departments: string[];
+      statuses: string[];
+      records: { data: any[]; total: number; limit: number; offset: number };
+    }>;
+  },
+  getComplianceDepartments: (): Promise<{ success: boolean; data: string[] }> =>
+    fetchAPI('/api/v1/compliance/departments'),
+  getComplianceStatuses: (): Promise<{ success: boolean; data: string[] }> =>
+    fetchAPI('/api/v1/compliance/statuses'),
   getComplianceRecords: (limit = 1000, offset = 0, department?: string, status?: string) => {
     let url = `/api/v1/compliance/records?limit=${limit}&offset=${offset}`;
     if (department) url += `&department=${encodeURIComponent(department)}`;
     if (status) url += `&status=${encodeURIComponent(status)}`;
     return fetchAPI(url);
   },
-  updateComplianceRecord: (id: number, data: any) => 
+  updateComplianceRecord: (id: number, data: any) =>
     fetch(`${API_BASE_URL}/api/v1/compliance/records/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    }).then(r => r.json()),
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    }).then((r) => r.json()),
   createComplianceRecord: (data: any) =>
     fetch(`${API_BASE_URL}/api/v1/compliance/records`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    }).then(r => r.json()),
-  
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    }).then((r) => r.json()),
+
+  getComplianceOwners: () => fetchAPI('/api/v1/compliance/owners'),
+  sendComplianceEmail: (payload: {
+    to_email: string;
+    subject?: string;
+    body?: string;
+    automated: boolean;
+  }) =>
+    fetch(`${API_BASE_URL}/api/v1/compliance/send-email`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    }).then((r) => r.json()),
+
+  /** Notify all given owner emails with the same subject/body (e.g. filtered table owners). */
+  notifyComplianceOwners: (payload: { to_emails: string[]; subject: string; body?: string }) =>
+    fetch(`${API_BASE_URL}/api/v1/compliance/notify-owners`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    }).then((r) => r.json()) as Promise<{ success: boolean; message: string; sent: number; failed: number; errors?: string[] }>,
+
   defaults: {
-    baseURL: API_BASE_URL
-  }
+    baseURL: API_BASE_URL,
+  },
 };
 
 // Create a singleton instance for compatibility

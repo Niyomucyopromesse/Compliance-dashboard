@@ -13,7 +13,7 @@ import { clsx } from 'clsx';
 
 const navigation = [
   { name: 'Home', href: '/home', icon: LayoutDashboard },
-  { name: 'Details', href: '/details', icon: FileText },
+  { name: 'RegMgmt', href: '/details', icon: FileText },
 ];
 
 export function Sidebar() {
@@ -42,29 +42,22 @@ export function Sidebar() {
 
       {/* Sidebar */}
       <div className={clsx(
-        'fixed top-0 bottom-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0',
+        'fixed top-0 bottom-0 left-0 z-50 w-52 bg-bk-navy text-white shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0',
         state.sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 lg:w-16'
       )}>
         <div className="flex h-full flex-col">
           {/* Logo and toggle button */}
-          <div className="flex h-16 items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center space-x-3 flex-1">
-              <Link to="/" className="flex items-center">
-                <img 
-                  src="/brand-logo.png" 
-                  alt="Bank Logo" 
-                  className={state.sidebarOpen ? "h-10 w-auto object-contain" : "h-8 w-8 object-contain"}
-                />
-              </Link>
+          <div className="flex h-16 items-center justify-between px-4 border-b border-white/10">
+            <div className="flex items-center space-x-3 flex-1 min-w-0">
               {state.sidebarOpen && (
-                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                  Compliance Register
-                </h1>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold text-slate-200 uppercase tracking-wider">Register</p>
+                </div>
               )}
             </div>
             <button
               onClick={toggleSidebar}
-              className="p-2 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="p-2 rounded-md text-slate-200 hover:text-white hover:bg-white/10"
             >
               {state.sidebarOpen ? (
                 <ChevronLeft className="h-5 w-5" />
@@ -75,7 +68,7 @@ export function Sidebar() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-4 space-y-1">
+          <nav className="flex-1 px-3 py-4 space-y-2">
             {navigation.map((item) => {
               const Icon = item.icon;
               const isCurrent = isCurrentPath(item.href);
@@ -85,17 +78,16 @@ export function Sidebar() {
                   key={item.name}
                   to={item.href}
                   className={clsx(
-                    'group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',
+                    'group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200',
                     isCurrent
-                      ? 'text-white'
-                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100'
+                      ? 'bg-bk-blue text-white shadow-lg translate-x-1'
+                      : 'text-slate-300 hover:bg-white/5 hover:text-white'
                   )}
-                  style={isCurrent ? { backgroundColor: '#006B3C' } : {}}
                 >
                   <Icon
                     className={clsx(
                       'mr-3 h-5 w-5 flex-shrink-0',
-                      isCurrent ? 'text-white' : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-500 dark:group-hover:text-gray-400'
+                      isCurrent ? 'text-bk-yellow' : 'text-slate-300 group-hover:text-white'
                     )}
                   />
                   {state.sidebarOpen && (
@@ -107,35 +99,35 @@ export function Sidebar() {
           </nav>
 
           {/* User section */}
-          <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+          <div className="border-t border-white/10 p-4">
             {state.sidebarOpen ? (
               <div className="space-y-3">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
-                    <div className="h-8 w-8 rounded-full flex items-center justify-center" style={{ backgroundColor: '#006B3C' }}>
+                    <div className="h-8 w-8 rounded-lg flex items-center justify-center bg-bk-blue">
                       <span className="text-sm font-medium text-white">
                         {authState.user?.name?.charAt(0) || 'U'}
                       </span>
                     </div>
                   </div>
                   <div className="ml-3">
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                    <p className="text-sm font-medium text-slate-100">
                       {authState.user?.name || 'User'}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-slate-400">
                       {authState.user?.role || 'Viewer'}
                     </p>
                   </div>
                 </div>
                 
                 <div className="space-y-1">
-                  <button className="flex w-full items-center px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 rounded-md">
+                  <button className="flex w-full items-center px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white rounded-md">
                     <Settings className="mr-3 h-4 w-4" />
                     Settings
                   </button>
                   <button
                     onClick={logout}
-                    className="flex w-full items-center px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 rounded-md"
+                    className="flex w-full items-center px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 hover:text-red-200 rounded-md"
                   >
                     <LogOut className="mr-3 h-4 w-4" />
                     Sign out
@@ -144,14 +136,14 @@ export function Sidebar() {
               </div>
             ) : (
               <div className="flex flex-col items-center space-y-2">
-                <div className="h-8 w-8 rounded-full flex items-center justify-center" style={{ backgroundColor: '#006B3C' }}>
+                <div className="h-8 w-8 rounded-lg flex items-center justify-center bg-bk-blue">
                   <span className="text-sm font-medium text-white">
                     {authState.user?.name?.charAt(0) || 'U'}
                   </span>
                 </div>
                 <button
                   onClick={logout}
-                  className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                  className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-md"
                 >
                   <LogOut className="h-4 w-4" />
                 </button>

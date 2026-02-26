@@ -8,6 +8,12 @@ export default {
   theme: {
     extend: {
       colors: {
+        bk: {
+          blue: '#034EA2',
+          navy: '#011B39',
+          light: '#F4F5F8',
+          yellow: '#EB9C20',
+        },
         primary: {
           50: '#eff6ff',
           100: '#dbeafe',

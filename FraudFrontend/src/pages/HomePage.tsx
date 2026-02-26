@@ -17,6 +17,33 @@ const BOK_COLORS = {
   gray: '#6B7280'          // Gray
 };
 
+const HOME_CACHE_KEY = 'home_compliance_data';
+const HOME_CACHE_TS_KEY = 'home_compliance_ts';
+const HOME_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function loadHomeCache(): any[] | null {
+  try {
+    const ts = sessionStorage.getItem(HOME_CACHE_TS_KEY);
+    const raw = sessionStorage.getItem(HOME_CACHE_KEY);
+    if (!raw || !ts) return null;
+    const age = Date.now() - parseInt(ts, 10);
+    if (age > HOME_CACHE_TTL_MS || age < 0) return null;
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveHomeCache(data: any[]) {
+  try {
+    sessionStorage.setItem(HOME_CACHE_KEY, JSON.stringify(data));
+    sessionStorage.setItem(HOME_CACHE_TS_KEY, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function HomePage() {
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState<any[]>([]);
@@ -24,32 +51,25 @@ export function HomePage() {
   const [departmentFilter, setDepartmentFilter] = useState<string>('');
 
   useEffect(() => {
-    fetchData();
+    const cached = loadHomeCache();
+    if (cached && cached.length > 0) {
+      setRecords(cached);
+      setLoading(false);
+      fetchData(true);
+    } else {
+      fetchData(false);
+    }
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = async (backgroundRefresh = false) => {
     try {
-      setLoading(true);
+      if (!backgroundRefresh) setLoading(true);
       setError(null);
-      
-      // Load only what's needed for stats and charts (limit to 500 for faster loading)
-      const recordsResponse = await api.getComplianceRecords(500, 0);
-      
-      if (recordsResponse && recordsResponse.success) {
-        const data = recordsResponse.data || [];
-        setRecords(data);
-        console.log('Records loaded:', data.length, 'First record:', data[0]);
-      } else if (recordsResponse && recordsResponse.data) {
-        const data = recordsResponse.data || [];
-        setRecords(data);
-        console.log('Records loaded (alt format):', data.length, 'First record:', data[0]);
-      } else if (Array.isArray(recordsResponse)) {
-        setRecords(recordsResponse);
-        console.log('Records loaded (direct array):', recordsResponse.length, 'First record:', recordsResponse[0]);
-      } else {
-        setRecords([]);
-        console.log('No records found in response:', recordsResponse);
-      }
+      const initialResponse = await api.getComplianceInitial(500, 0);
+      const data = initialResponse?.records?.data ?? (initialResponse as any)?.data ?? [];
+      const list = Array.isArray(data) ? data : [];
+      setRecords(list);
+      if (list.length > 0) saveHomeCache(list);
     } catch (err: any) {
       const errorMessage = err?.message || err?.detail || 'Failed to load compliance data. Make sure the Excel file exists in the data folder.';
       setError(errorMessage);

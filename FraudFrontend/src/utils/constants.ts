@@ -36,6 +36,9 @@ export const ALERT_TYPES = {
   unusual_pattern: 'Unusual Pattern',
   high_risk_customer: 'High Risk Customer',
   account_anomaly: 'Account Anomaly',
+  STAFF_FRAUD: 'Staff Fraud',
+  STAFF_EXTERNAL_CREDIT: 'Staff External Credit',
+  STAFF_INTERNAL_CREDIT: 'Staff Internal Credit',
 } as const;
 
 export const ACCOUNT_TYPES = {

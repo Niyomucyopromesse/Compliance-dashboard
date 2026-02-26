@@ -33,26 +33,26 @@ export function MetricCard({
   };
 
   const getDeltaColor = () => {
-    if (delta === undefined || delta === 0) return 'text-gray-500 dark:text-gray-400';
-    return delta > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+    if (delta === undefined || delta === 0) return 'text-slate-400';
+    return delta > 0 ? 'text-emerald-400' : 'text-rose-400';
   };
 
   const getDeltaBgColor = () => {
-    if (delta === undefined || delta === 0) return 'bg-gray-100 dark:bg-gray-700';
-    return delta > 0 ? 'bg-green-100 dark:bg-green-900' : 'bg-red-100 dark:bg-red-900';
+    if (delta === undefined || delta === 0) return 'bg-slate-700/60';
+    return delta > 0 ? 'bg-emerald-500/15' : 'bg-rose-500/15';
   };
 
   if (loading) {
     return (
       <div className={clsx(
-        'bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 shadow-sm',
+        'bg-slate-900/70 rounded-xl border border-slate-800 p-6 shadow-sm',
         onClick && 'cursor-pointer hover:shadow-md transition-shadow',
         className
       )}>
         <div className="animate-pulse">
-          <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/2 mb-2"></div>
-          <div className="h-8 bg-gray-200 dark:bg-gray-600 rounded w-3/4 mb-4"></div>
-          <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-1/3"></div>
+          <div className="h-4 bg-slate-800 rounded w-1/2 mb-2"></div>
+          <div className="h-8 bg-slate-800 rounded w-3/4 mb-4"></div>
+          <div className="h-3 bg-slate-800 rounded w-1/3"></div>
         </div>
       </div>
     );
@@ -61,14 +61,14 @@ export function MetricCard({
   return (
     <div
       className={clsx(
-        'bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 shadow-sm',
+        'bg-slate-900/70 rounded-xl border border-slate-800 p-6 shadow-sm',
         onClick && 'cursor-pointer hover:shadow-md transition-shadow',
         className
       )}
       onClick={onClick}
     >
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">{title}</h3>
+        <h3 className="text-sm font-medium text-slate-400">{title}</h3>
         {sparklineData && sparklineData.length > 0 && (
           <div className="w-16 h-8">
             <Sparkline data={sparklineData} />
@@ -77,7 +77,7 @@ export function MetricCard({
       </div>
       
       <div className="mt-2">
-        <p className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+        <p className="text-2xl font-semibold text-slate-100">
           {typeof value === 'number' ? value.toLocaleString() : value}
         </p>
         
@@ -94,7 +94,7 @@ export function MetricCard({
               </span>
             </div>
             {deltaLabel && (
-              <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+              <span className="ml-2 text-sm text-slate-400">
                 {deltaLabel}
               </span>
             )}

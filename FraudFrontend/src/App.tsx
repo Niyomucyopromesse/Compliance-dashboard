@@ -1,8 +1,10 @@
-import { BrowserRouter as Router } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { UIProvider } from '@/contexts/UIContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AppRoutes } from '@/routes';
+import { LoginPage } from '@/pages/LoginPage';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import './styles/tailwind.css';
 
 function App() {
@@ -15,9 +17,19 @@ function App() {
     >
       <AuthProvider>
         <UIProvider>
-          <AppLayout>
-            <AppRoutes />
-          </AppLayout>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route
+              path="/*"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <AppRoutes />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
         </UIProvider>
       </AuthProvider>
     </Router>

@@ -11,7 +11,6 @@ pydantic-settings==2.1.0
 # Authentication and security
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.6
 
 # Background tasks and async
 celery==5.3.4
@@ -23,7 +22,8 @@ httpx==0.25.2
 
 # Data processing and utilities
 pandas==2.1.4
-numpy==1.25.2
+# Use a Python 3.12-compatible wheel to avoid source build/distutils errors.
+numpy==1.26.4
 python-dateutil==2.8.2
 
 # Logging and monitoring
@@ -34,7 +34,6 @@ prometheus-client==0.19.0
 pytest==7.4.3
 pytest-asyncio==0.21.1
 pytest-mock==3.12.0
-httpx==0.25.2
 
 # Development tools
 black==23.11.0
@@ -44,3 +43,6 @@ mypy==1.7.1
 
 # Environment and configuration
 python-dotenv==1.0.0
+
+# LDAP / AD
+ldap3==2.9.1

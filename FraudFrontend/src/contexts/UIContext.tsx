@@ -26,7 +26,7 @@ const UIContext = createContext<UIContextType | undefined>(undefined);
 
 const initialState: UIState = {
   sidebarOpen: true,
-  theme: 'light',
+  theme: 'dark',
   notifications: true,
   autoRefresh: true,
   refreshInterval: 30000, // 30 seconds
@@ -41,7 +41,7 @@ function uiReducer(state: UIState, action: UIAction): UIState {
       return { ...state, sidebarOpen: action.payload };
     
     case 'SET_THEME':
-      return { ...state, theme: action.payload };
+      return { ...state, theme: 'dark' };
     
     case 'SET_NOTIFICATIONS':
       return { ...state, notifications: action.payload };
@@ -70,7 +70,7 @@ export function UIProvider({ children }: UIProviderProps) {
       const saved = localStorage.getItem(STORAGE_KEYS.UI_STATE);
       if (saved) {
         const parsed = JSON.parse(saved);
-        return { ...initialState, ...parsed };
+        return { ...initialState, ...parsed, theme: 'dark' };
       }
     } catch (error) {
       console.warn('Failed to load UI state from localStorage:', error);

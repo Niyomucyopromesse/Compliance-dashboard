@@ -58,16 +58,20 @@ Thumbs.db
 *.log
 logs/
 
-# Environment variables
+# Environment variables (never commit secrets)
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+FraudBackend/.env
+FraudBackend/app/.env
+FraudFrontend/.env
 
-# Database
+# Database (local SQLite - recreated on deploy)
 *.db
 *.sqlite3
+FraudBackend/app/data/*.db
 
 # Temporary files
 *.tmp
