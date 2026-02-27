@@ -24,6 +24,48 @@ interface OwnerInfo {
 const SEVERITY_OPTIONS = ['critical', 'high', 'medium', 'low'] as const;
 const VALIDATION_OPTIONS = ['validated', 'not validated', 'pending'] as const;
 
+const DETAILS_CACHE_KEY = 'details_compliance_initial';
+const DETAILS_CACHE_TS_KEY = 'details_compliance_ts';
+const DETAILS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function getDetailsCache(): {
+  departments: string[];
+  statuses: string[];
+  records: ComplianceRecord[];
+  total: number;
+  ownersList: OwnerInfo[];
+  columns: string[];
+  statusColumnName: string;
+} | null {
+  try {
+    const ts = sessionStorage.getItem(DETAILS_CACHE_TS_KEY);
+    const raw = sessionStorage.getItem(DETAILS_CACHE_KEY);
+    if (!raw || !ts) return null;
+    const age = Date.now() - parseInt(ts, 10);
+    if (age > DETAILS_CACHE_TTL_MS || age < 0) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function setDetailsCache(payload: {
+  departments: string[];
+  statuses: string[];
+  records: ComplianceRecord[];
+  total: number;
+  ownersList: OwnerInfo[];
+  columns: string[];
+  statusColumnName: string;
+}) {
+  try {
+    sessionStorage.setItem(DETAILS_CACHE_KEY, JSON.stringify(payload));
+    sessionStorage.setItem(DETAILS_CACHE_TS_KEY, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+}
+
 interface ComplianceRecord {
   id: number;
   __createdAt?: string;
@@ -88,10 +130,22 @@ export function DetailsPage() {
   }, [currentPage, departmentFilter, statusFilter]);
 
   const fetchRecords = async () => {
+    const offset = (currentPage - 1) * pageSize;
+    const isInitialLoad = currentPage === 1 && !departmentFilter && !statusFilter;
+    const cached = isInitialLoad ? getDetailsCache() : null;
+    if (cached) {
+      setAvailableDepartments(cached.departments);
+      setAvailableStatuses(cached.statuses);
+      setRecords(cached.records);
+      setTotalRecords(cached.total);
+      setOwnersList(cached.ownersList);
+      setColumns(cached.columns);
+      setStatusColumnName(cached.statusColumnName);
+      setLoading(false);
+    }
+
     try {
-      setLoading(true);
-      const offset = (currentPage - 1) * pageSize;
-      const isInitialLoad = currentPage === 1 && !departmentFilter && !statusFilter;
+      if (!cached) setLoading(true);
       const [response, ownersRes] = await Promise.all([
         isInitialLoad
           ? api.getComplianceInitial(pageSize, offset)
@@ -182,6 +236,7 @@ export function DetailsPage() {
             'REGULATION', 'ARTICLE DETAILS', 'ACTION OWNER', 'COMMENT ON COMPLIANCE STATUS',
           ];
           const isUnnamed = (key: string) => /^Unnamed:\s*\d+$/i.test(key);
+          const isCommentColumn = (key: string) => key.trim().toLowerCase().includes('comment');
           const isEmptyColumnToHide = (key: string) =>
             emptyColumnsToHide.some((h) => key.trim().toLowerCase() === h.toLowerCase());
           // Prefer the actual compliance status column (e.g. "COMPLIANCE STATUS", "Status"), not comment columns
@@ -200,16 +255,28 @@ export function DetailsPage() {
           // Hide only the generic "Status" column (useless); keep compliance status column (statusCol) visible
           const isUselessStatusColumn = (key: string) =>
             key.trim().toLowerCase() === 'status' && statusCol && key !== statusCol;
-          setColumns(
-            Object.keys(firstRecord).filter(
-              (k) =>
-                !hiddenColumns.includes(k) &&
-                !isUnnamed(k) &&
-                !isUselessStatusColumn(k) &&
-                !isEmptyColumnToHide(k)
-            )
+          const cols = Object.keys(firstRecord).filter(
+            (k) =>
+              !hiddenColumns.includes(k) &&
+              !isUnnamed(k) &&
+              !isCommentColumn(k) &&
+              !isUselessStatusColumn(k) &&
+              !isEmptyColumnToHide(k)
           );
+          setColumns(cols);
           setStatusColumnName(statusCol ?? '');
+          if (isInitialLoad) {
+            const res = response as { departments?: string[]; statuses?: string[] };
+            setDetailsCache({
+              departments: res.departments ?? [],
+              statuses: res.statuses ?? [],
+              records: enrichedRecords,
+              total: total || data.length,
+              ownersList: shuffled,
+              columns: cols,
+              statusColumnName: statusCol ?? '',
+            });
+          }
         }
       } else {
         setRecords([]);
@@ -333,7 +400,23 @@ export function DetailsPage() {
     if (!value) return '-';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return String(value);
-    return date.toLocaleString();
+    return date.toLocaleDateString();
+  };
+
+  /** Format date-only for table cells (e.g. "2/26/2026" without time). */
+  const formatDateOnly = (value: unknown): string => {
+    if (value == null || value === '') return '-';
+    const date = new Date(String(value));
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleDateString();
+  };
+
+  const looksLikeDate = (value: unknown): boolean => {
+    if (value == null || value === '') return false;
+    const s = String(value);
+    const date = new Date(s);
+    if (Number.isNaN(date.getTime())) return false;
+    return /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(s) || /^\d{4}-\d{2}-\d{2}/.test(s) || !Number.isNaN(date.getTime());
   };
 
   const getDaysRemainingBadgeColor = (days: number) => {
@@ -501,7 +584,7 @@ export function DetailsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 min-w-0 overflow-hidden max-w-full">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -769,24 +852,24 @@ export function DetailsPage() {
         </div>
       )}
 
-      {/* Records Table */}
-      <Card className="bg-white overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
+      {/* Records Table - fits page width, no horizontal scroll */}
+      <Card className="bg-white overflow-hidden max-w-full">
+        <div className="overflow-hidden max-w-full">
+          <table className="w-full table-fixed max-w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">ID</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Created At</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Days Remaining</th>
+                <th className="px-2 py-3 text-left text-sm font-semibold text-gray-700 w-14">ID</th>
+                <th className="px-2 py-3 text-left text-sm font-semibold text-gray-700 w-24">Created At</th>
+                <th className="px-2 py-3 text-left text-sm font-semibold text-gray-700 w-28">Days Remaining</th>
                 {columns.map((col) => (
-                  <th key={col} className="px-4 py-3 text-left text-sm font-semibold text-gray-700 whitespace-nowrap">
+                  <th key={col} className="px-2 py-3 text-left text-sm font-semibold text-gray-700 truncate" title={col.replace(/_/g, ' ')}>
                     {col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                   </th>
                 ))}
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Severity</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Validation</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Owners</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
+                <th className="px-2 py-3 text-left text-sm font-semibold text-gray-700 w-20">Severity</th>
+                <th className="px-2 py-3 text-left text-sm font-semibold text-gray-700 w-24">Validation</th>
+                <th className="px-2 py-3 text-left text-sm font-semibold text-gray-700 w-32">Owners</th>
+                <th className="px-2 py-3 text-left text-sm font-semibold text-gray-700 w-24">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -806,11 +889,11 @@ export function DetailsPage() {
                       backgroundColor: '#eff6ff'
                     } : {}}
                   >
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{record.id}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                    <td className="px-2 py-3 text-sm font-medium text-gray-900 truncate">{record.id}</td>
+                    <td className="px-2 py-3 text-sm text-gray-900 whitespace-nowrap">
                       {formatCreatedAt(record.__createdAt)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-3">
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-semibold ${getDaysRemainingBadgeColor(record.__daysRemaining ?? 0)}`}
                       >
@@ -821,15 +904,18 @@ export function DetailsPage() {
                       const isStatusCol = col === statusColumnName || 
                         (col.toLowerCase().includes('status') || col.toLowerCase().includes('compliance'));
                       const value = record[col];
+                      const displayValue = value != null && value !== '' ? String(value) : '-';
+                      const isDate = looksLikeDate(value);
+                      const cellContent = isDate ? formatDateOnly(value) : (displayValue === '-' ? '-' : displayValue.substring(0, 80));
                       
                       return (
-                        <td key={col} className="px-4 py-3">
+                        <td key={col} className="px-2 py-3 min-w-0">
                           {editingId === record.id ? (
                             isStatusCol ? (
                               <select
                                 value={editData[col] || ''}
                                 onChange={(e) => setEditData({ ...editData, [col]: e.target.value })}
-                                className="w-full px-3 py-2 border-2 rounded-lg text-sm font-medium bg-white focus:ring-2 focus:outline-none transition-all shadow-sm"
+                                className="w-full min-w-0 px-2 py-1.5 border-2 rounded-lg text-sm font-medium bg-white focus:ring-2 focus:outline-none transition-all shadow-sm"
                                 style={{ 
                                   borderColor: BOK_COLORS.primary,
                                   color: '#111827',
@@ -842,23 +928,23 @@ export function DetailsPage() {
                                 ))}
                               </select>
                             ) : (
-                              <span className="text-sm text-gray-700 font-medium">
-                                {value != null && value !== '' ? String(value).substring(0, 80) : '-'}
+                              <span className="text-sm text-gray-700 font-medium truncate block">
+                                {cellContent}
                               </span>
                             )
                           ) : isStatusCol && (value != null && value !== '') ? (
-                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(String(value))}`}>
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold truncate inline-block max-w-full ${getStatusBadgeColor(String(value))}`}>
                               {String(value)}
                             </span>
                           ) : (
-                            <span className="text-sm text-gray-900">
-                              {value != null && value !== '' ? String(value).substring(0, 80) : '-'}
+                            <span className="text-sm text-gray-900 truncate block" title={displayValue !== '-' ? displayValue : undefined}>
+                              {cellContent}
                             </span>
                           )}
                         </td>
                       );
                     })}
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                         (record.__severity ?? '').toLowerCase() === 'critical' ? 'bg-red-100 text-red-800' :
                         (record.__severity ?? '').toLowerCase() === 'high' ? 'bg-orange-100 text-orange-800' :
@@ -868,10 +954,10 @@ export function DetailsPage() {
                         {record.__severity ?? '-'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-2 py-3 text-sm text-gray-900 truncate">
                       {record.__validation ?? '-'}
                     </td>
-                    <td className="px-4 py-3 relative">
+                    <td className="px-2 py-3 relative min-w-0">
                       {record.__owner ? (
                         <div className="inline-block">
                           <button
@@ -930,7 +1016,7 @@ export function DetailsPage() {
                         <span className="text-sm text-gray-500">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-3">
                       {editingId === record.id ? (
                         <div className="flex gap-2">
                           <button

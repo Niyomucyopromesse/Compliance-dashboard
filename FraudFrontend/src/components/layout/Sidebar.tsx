@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
+import {
+  LayoutDashboard,
   FileText,
   ChevronLeft,
   ChevronRight,
@@ -10,11 +10,21 @@ import {
 import { useUI } from '@/contexts/UIContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { clsx } from 'clsx';
+import { api } from '@/services/api';
 
 const navigation = [
   { name: 'Home', href: '/home', icon: LayoutDashboard },
   { name: 'RegMgmt', href: '/details', icon: FileText },
 ];
+
+function prefetchHomeData() {
+  api.getComplianceInitial(100, 0).catch(() => {});
+}
+
+function prefetchDetailsData() {
+  api.getComplianceInitial(50, 0).catch(() => {});
+  api.getComplianceOwners().catch(() => {});
+}
 
 export function Sidebar() {
   const { state, toggleSidebar } = useUI();
@@ -77,6 +87,7 @@ export function Sidebar() {
                 <Link
                   key={item.name}
                   to={item.href}
+                  onMouseEnter={() => { if (item.href === '/home') prefetchHomeData(); if (item.href === '/details') prefetchDetailsData(); }}
                   className={clsx(
                     'group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200',
                     isCurrent

@@ -41,20 +41,22 @@ async def lifespan(app: FastAPI):
         _s = _gs()
         if _s.use_compliance_sqlite and COMPLIANCE_FILE.exists():
             await asyncio.to_thread(compliance_db.import_from_excel, read_all_sheets_from_excel, COMPLIANCE_FILE)
-            # Warm Redis with default initial response (limit=50, no filters) so first request is a cache hit
+            # Warm Redis for 50 (Details) and 100 (Home) so first requests are cache hits
             if getattr(_s, "use_redis_cache", False) and compliance_db.has_data():
-                try:
-                    depts = compliance_db.get_departments()
-                    statuses = compliance_db.get_statuses()
-                    recs, total = compliance_db.get_records(50, 0, None, None)
-                    for r in recs:
-                        for k, v in list(r.items()):
-                            if v is not None and isinstance(v, float) and (v != v or v == 1e999):
-                                r[k] = None
-                    out = {"success": True, "departments": depts, "statuses": statuses, "records": {"data": recs, "total": total, "limit": 50, "offset": 0}}
-                    redis_cache.cache_set("compliance:initial:50:0::", out, getattr(_s, "redis_cache_ttl", 300))
-                except Exception:
-                    pass
+                ttl = getattr(_s, "redis_cache_ttl", 300)
+                for limit in (50, 100):
+                    try:
+                        depts = compliance_db.get_departments()
+                        statuses = compliance_db.get_statuses()
+                        recs, total = compliance_db.get_records(limit, 0, None, None)
+                        for r in recs:
+                            for k, v in list(r.items()):
+                                if v is not None and isinstance(v, float) and (v != v or v == 1e999):
+                                    r[k] = None
+                        out = {"success": True, "departments": depts, "statuses": statuses, "records": {"data": recs, "total": total, "limit": limit, "offset": 0}}
+                        redis_cache.cache_set(f"compliance:initial:{limit}:0::", out, ttl)
+                    except Exception:
+                        pass
     except Exception:
         pass
     # Ensure access allowlist DB and table exist; sync allowed usernames from file (no names in code)

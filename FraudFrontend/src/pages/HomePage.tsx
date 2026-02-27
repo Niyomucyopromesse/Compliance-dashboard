@@ -65,7 +65,7 @@ export function HomePage() {
     try {
       if (!backgroundRefresh) setLoading(true);
       setError(null);
-      const initialResponse = await api.getComplianceInitial(500, 0);
+      const initialResponse = await api.getComplianceInitial(100, 0);
       const data = initialResponse?.records?.data ?? (initialResponse as any)?.data ?? [];
       const list = Array.isArray(data) ? data : [];
       setRecords(list);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/services/api';
 import { Button } from '@/components/common/Button';
@@ -12,17 +12,16 @@ const BOK = {
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { state: authState, login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
+  const dashboardPath = '/home';
 
   if (authState.isAuthenticated && authState.token) {
-    return <Navigate to={from} replace />;
+    return <Navigate to={dashboardPath} replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,7 +40,11 @@ export function LoginPage() {
         },
         res.access_token
       );
-      navigate(from, { replace: true });
+      // Prefetch dashboard data so Home/RegMgmt load instantly when user navigates
+      api.getComplianceInitial(100, 0).catch(() => {});
+      api.getComplianceInitial(50, 0).catch(() => {});
+      api.getComplianceOwners().catch(() => {});
+      navigate(dashboardPath, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {

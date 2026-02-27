@@ -1,6 +1,10 @@
 // Simple API client for the fraud detection system (uses .env: VITE_API_BASE_URL)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001';
 
+// In-memory cache for /compliance/initial to reduce latency when switching pages
+const INITIAL_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+let initialCache: { key: string; data: any; ts: number } | null = null;
+
 function getAuthHeaders(): Record<string, string> {
   const token = typeof localStorage !== 'undefined' ? localStorage.getItem('fraud_dashboard_auth_token') : null;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -46,17 +50,24 @@ export const api = {
 
   // Compliance Register
   getComplianceStats: () => fetchAPI('/api/v1/compliance/stats'),
-  /** Single call: departments + statuses + first page. Use for initial load to reduce latency. */
-  getComplianceInitial: (limit = 1000, offset = 0, department?: string, status?: string) => {
+  /** Single call: departments + statuses + first page. Use for initial load to reduce latency. Cached in memory for 2 min. */
+  getComplianceInitial: async (limit = 1000, offset = 0, department?: string, status?: string) => {
+    const key = `initial:${limit}:${offset}:${department ?? ''}:${status ?? ''}`;
+    const now = Date.now();
+    if (initialCache && initialCache.key === key && now - initialCache.ts < INITIAL_CACHE_TTL_MS) {
+      return initialCache.data as Promise<{
+        success: boolean;
+        departments: string[];
+        statuses: string[];
+        records: { data: any[]; total: number; limit: number; offset: number };
+      }>;
+    }
     let url = `/api/v1/compliance/initial?limit=${limit}&offset=${offset}`;
     if (department) url += `&department=${encodeURIComponent(department)}`;
     if (status) url += `&status=${encodeURIComponent(status)}`;
-    return fetchAPI(url) as Promise<{
-      success: boolean;
-      departments: string[];
-      statuses: string[];
-      records: { data: any[]; total: number; limit: number; offset: number };
-    }>;
+    const data = await fetchAPI(url);
+    initialCache = { key, data, ts: now };
+    return data;
   },
   getComplianceDepartments: (): Promise<{ success: boolean; data: string[] }> =>
     fetchAPI('/api/v1/compliance/departments'),
