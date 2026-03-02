@@ -10,6 +10,7 @@ interface ButtonProps {
   loading?: boolean;
   className?: string;
   fullWidth?: boolean;
+  style?: React.CSSProperties;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -21,7 +22,8 @@ export const Button: React.FC<ButtonProps> = ({
   disabled = false,
   loading = false,
   className = '',
-  fullWidth = false
+  fullWidth = false,
+  style
 }) => {
   const baseClasses = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2';
   
@@ -46,6 +48,7 @@ export const Button: React.FC<ButtonProps> = ({
       type={type}
       onClick={onClick}
       disabled={disabled || loading}
+      style={style}
       className={`
         ${baseClasses}
         ${variantClasses[variant]}
