@@ -718,7 +718,7 @@ export function DetailsPage() {
               <button
                 onClick={handleNotifyAllOwners}
                 disabled={filteredRecords.length === 0 || notifyAllSending}
-                title={`Send notification to all owners of the currently filtered records${ownersList.length ? ` (${ownersList.length} owners in list)` : ''}`}
+                title={`Send notification to all owners of the currently filtered records${ownersList.length > 0 ? ` (${ownersList.length} owners in list)` : ''}`}
                 className="flex-1 min-w-[140px] inline-flex items-center justify-center gap-1.5 h-[40px] px-4 py-1.5 text-sm rounded-lg font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ backgroundColor: BOK_COLORS.gold, color: '#1f2937' }}
               >

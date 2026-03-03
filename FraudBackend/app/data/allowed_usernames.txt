@@ -1,5 +1,6 @@
 # Allowed usernames: one per line. Edit this file and restart the backend to add/remove users.
 # Lines starting with # are ignored.
+demo
 pniyomucyo
 smutinda
 faishimwe

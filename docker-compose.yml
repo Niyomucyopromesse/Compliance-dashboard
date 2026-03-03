@@ -1,0 +1,54 @@
+# Compliance / RegMgmt app: frontend, backend, Redis.
+# From repo root: docker compose up -d
+# Same ports as local dev: App http://localhost:3004   API http://localhost:8001/docs
+# Put Excel and allowed_usernames.txt in ./FraudBackend/app/data/ (or mount your own path).
+
+services:
+  frontend:
+    build:
+      context: ./FraudFrontend
+      dockerfile: Dockerfile
+      args:
+        # API URL as seen by the browser (user's machine). Use backend:8001 only if behind same-host proxy.
+        VITE_API_BASE_URL: http://localhost:8001
+    ports:
+      - "3004:80"
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./FraudBackend
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 90s
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      USE_REDIS_CACHE: "true"
+      USE_COMPLIANCE_SQLITE: "true"
+      DEMO_LOGIN_ENABLED: "true"
+      ACCESS_ALLOWLIST_ENABLED: "true"
+      # Override in .env or set real secrets in production
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      ACCESS_LIST_ADMIN_SECRET: ${ACCESS_LIST_ADMIN_SECRET:-change-me}
+    volumes:
+      # Mount data dir: put Compliance_Register - Copy.xlsx and allowed_usernames.txt here
+      - ./FraudBackend/app/data:/app/app/data
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"   # host 6380 to avoid conflict with Redis on 6379
+    volumes:
+      - redis_data:/data
+
+volumes:
+  redis_data:

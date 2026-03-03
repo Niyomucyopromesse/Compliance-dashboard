@@ -1,6 +1,7 @@
 """Simple FastAPI application for testing."""
 
 import asyncio
+import logging
 import smtplib
 import time
 from contextlib import asynccontextmanager
@@ -23,18 +24,25 @@ from app import redis_cache
 from app import access_allowlist
 from app import compliance_db
 
+logger = logging.getLogger(__name__)
+
+# Compliance data paths (used at startup and by compliance endpoints)
+DATA_DIR = Path(__file__).resolve().parent / "data"
+COMPLIANCE_FILE = DATA_DIR / "Compliance_Register - Copy.xlsx"
+EMAIL_FILE = DATA_DIR / "email.xlsx"
+if not EMAIL_FILE.exists():
+    EMAIL_FILE = DATA_DIR / "email"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle startup/shutdown. Warm Excel cache so first request is fast; suppress CancelledError on reload."""
     # Warm in-memory Excel cache in a thread so first compliance request doesn't block on read
     try:
-        _data_dir = Path(__file__).resolve().parent / "data"
-        _compliance_file = _data_dir / "Compliance_Register - Copy.xlsx"
-        if _data_dir.exists() and _compliance_file.exists():
-            await asyncio.to_thread(read_all_sheets_from_excel, _compliance_file)
-    except Exception:
-        pass
+        if DATA_DIR.exists() and COMPLIANCE_FILE.exists():
+            await asyncio.to_thread(read_all_sheets_from_excel, COMPLIANCE_FILE)
+    except Exception as e:
+        logger.warning("Startup: warm Excel cache failed: %s", e)
     # Compliance SQLite: import Excel into DB once so reads are fast (no Excel on every request)
     try:
         from app.config import get_settings as _gs
@@ -55,16 +63,16 @@ async def lifespan(app: FastAPI):
                                     r[k] = None
                         out = {"success": True, "departments": depts, "statuses": statuses, "records": {"data": recs, "total": total, "limit": limit, "offset": 0}}
                         redis_cache.cache_set(f"compliance:initial:{limit}:0::", out, ttl)
-                    except Exception:
-                        pass
-    except Exception:
-        pass
+                    except Exception as re:
+                        logger.warning("Startup: Redis warm for limit=%s failed: %s", limit, re)
+    except Exception as e:
+        logger.warning("Startup: compliance SQLite/Redis init failed: %s", e)
     # Ensure access allowlist DB and table exist; sync allowed usernames from file (no names in code)
     try:
         access_allowlist.init_db()
         await asyncio.to_thread(access_allowlist.sync_from_file)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Startup: access allowlist init failed: %s", e)
     try:
         yield
     except asyncio.CancelledError:
@@ -81,13 +89,26 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Add CORS middleware to allow frontend connections
+# Add CORS middleware so browser allows fetch() from frontend (different port = cross-origin)
+# With allow_credentials=True, browser requires explicit origins (not "*")
+_def_origins = [
+    "http://localhost:3000", "http://localhost:3001", "http://localhost:3010",
+    "http://localhost:3004", "http://localhost:5173",  # Vite dev: 3004 (this app), 5173 default
+    "http://127.0.0.1:3000", "http://127.0.0.1:3001", "http://127.0.0.1:3010",
+    "http://127.0.0.1:3004", "http://127.0.0.1:5173",
+]
+try:
+    _extra = get_settings().cors_origins or []
+    _CORS_ORIGINS = list(dict.fromkeys(_def_origins + [o if o.startswith("http") else f"http://{o}" for o in _extra]))
+except Exception:
+    _CORS_ORIGINS = _def_origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for testing
+    allow_origins=_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Simple data models
@@ -595,14 +616,7 @@ async def get_accounts():
     }
 
 
-# Compliance Register endpoints
-# Keep compliance data path relative to this repository so it works on any machine.
-DATA_DIR = Path(__file__).resolve().parent / "data"
-COMPLIANCE_FILE = DATA_DIR / "Compliance_Register - Copy.xlsx"
-EMAIL_FILE = DATA_DIR / "email.xlsx"
-if not EMAIL_FILE.exists():
-    EMAIL_FILE = DATA_DIR / "email"  # try no extension
-
+# Compliance Register endpoints (DATA_DIR, COMPLIANCE_FILE, EMAIL_FILE defined at top)
 # Simple cache for combined dataframe (cleared on updates)
 _cached_df = None
 _cached_sheet_map = None

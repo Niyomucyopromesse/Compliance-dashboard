@@ -14,15 +14,22 @@ function getAuthHeaders(): Record<string, string> {
 
 async function fetchAPI(endpoint: string, options: RequestInit = {}) {
   const headers = { ...getAuthHeaders(), ...(options.headers as Record<string, string>) };
+  const url = `${API_BASE_URL}${endpoint}`;
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers });
+    const response = await fetch(url, { ...options, headers });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     return await response.json();
   } catch (error) {
     console.error(`API Error fetching ${endpoint}:`, error);
-    throw error;
+    const msg =
+      error instanceof TypeError && error.message === 'Failed to fetch'
+        ? `Cannot reach the API at ${API_BASE_URL}. Check that the backend is running (e.g. open ${API_BASE_URL}/docs).`
+        : error instanceof Error
+          ? error.message
+          : 'Request failed';
+    throw new Error(msg);
   }
 }
 
